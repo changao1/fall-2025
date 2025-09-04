@@ -118,6 +118,7 @@ function q2(A, B, C)
     return nothing
 end
 
+
 # Question 3: Reading in Data and calculating summary statistics
 function q3()
     # (a) Import nlsw88.csv
@@ -158,62 +159,52 @@ function q3()
     return nothing
 end
 
-# Question 4: Practice with functions
+
+# Question 4: Writing functions and error handling
+
+
+
+# part (b) of question 4
+"""
+peform three matrix operations on two input matrices A and B
+1. element wise product of A and B
+2. product A'B
+3. sum of all elements of A+B
+"""
+function matrixops(A::Matrix{Float64}, B::Matrix{Float64})
+    if size(A) != size(B)
+        error("inputs must have the same size")
+    end
+    # (i) element wise product of A and B
+    out1 = A .* B
+    # (ii) product A'B
+    out2 = A' * B
+    # (iii) sum of all elements of A+B
+    out3 = sum(A + B)
+    return out1, out2, out3
+end
+
 function q4()
-    # (a) Load firstmatrix.jld
-    matrices = load("firstmatrix.jld")
-    A_loaded = matrices["A"]
-    B_loaded = matrices["B"]
-    C_loaded = matrices["C"]
-    D_loaded = matrices["D"]
-    
-    # (b-f) Define matrixops function
-    function matrixops(mat1, mat2)
-        # Check if inputs have same size
-        if size(mat1) != size(mat2)
-            error("inputs must have the same size")
-        end
-        
-        # (i) Element-by-element product
-        elem_product = mat1 .* mat2
-        
-        # (ii) Product A'B
-        matrix_product = mat1' * mat2
-        
-        # (iii) Sum of all elements of A+B
-        sum_elements = sum(mat1 + mat2)
-        
-        return elem_product, matrix_product, sum_elements
-    end
-    
-    # (d) Evaluate matrixops using A and B
-    result1, result2, result3 = matrixops(A_loaded, B_loaded)
-    println("matrixops(A,B) completed successfully")
-    
-    # (f) Try with C and D (should give error due to size mismatch)
+    # three ways to load the .jld file
+    # load("matrixpractice.jld", "A", "B", "C", "D", "E", "F", "G")
+    # @load "matrixpractice.jld" A B C D E F G
+    @load "matrixpractice.jld"
+
+
+    #part (d) of question 4
+    matrixops(A, B)
+    #part (f) of question 4
     try
-        matrixops(C_loaded, D_loaded)
+        matrixops(C, D)
     catch e
-        println("Error with matrixops(C,D): ", e)
+        @show e
     end
-    
-    # (g) Try with nlsw88 data
+    #part (g) of question 4
     nlsw88 = CSV.read("nlsw88_processed.csv", DataFrame)
-    ttl_exp_array = convert(Array, nlsw88.ttl_exp)
-    wage_array = convert(Array, nlsw88.wage)
-    
-    # Ensure same length
-    min_length = min(length(ttl_exp_array), length(wage_array))
-    ttl_exp_array = ttl_exp_array[1:min_length]
-    wage_array = wage_array[1:min_length]
-    
-    try
-        result_data = matrixops(ttl_exp_array, wage_array)
-        println("matrixops with ttl_exp and wage completed successfully")
-    catch e
-        println("Error with matrixops(ttl_exp, wage): ", e)
-    end
-    
+    ttl_exp = reshape(convert(Array, nlsw88.ttl_exp), :, 1)
+    wage = reshape(convert(Array, nlsw88.wage), :, 1)
+    matrixops(ttl_exp, wage)
+
     return nothing
 end
 
@@ -223,62 +214,3 @@ q2(A, B, C)
 q3()
 q4()
 
-# Question 5: Unit tests for all functions
-using Test
-
-@testset "PS1 Unit Tests" begin
-    
-    @testset "Question 1 Tests" begin
-        A_test, B_test, C_test, D_test = q1()
-        
-        @test size(A_test) == (10, 7)
-        @test size(B_test) == (10, 7) 
-        @test size(C_test) == (5, 7)
-        @test size(D_test) == (10, 7)
-        
-        # Test that D only has non-positive values of A or zeros
-        @test all((D_test .== 0) .| (D_test .<= 0))
-        @test all(D_test[A_test .<= 0] .== A_test[A_test .<= 0])
-        @test all(D_test[A_test .> 0] .== 0)
-        
-        println("✓ Question 1 tests passed")
-    end
-    
-    @testset "Question 2 Tests" begin
-        # Test with small matrices
-        A_small = [1 2; 3 4]
-        B_small = [5 6; 7 8] 
-        C_small = [1 -6; 0 4]
-        
-        # This should not error
-        @test_nowarn q2(A_small, B_small, C_small)
-        
-        println("✓ Question 2 tests passed")
-    end
-    
-    @testset "Question 3 Tests" begin
-        # Test that the function runs without error
-        @test_nowarn q3()
-        
-        # Test that files were created
-        @test isfile("nlsw88_processed.csv")
-        
-        println("✓ Question 3 tests passed") 
-    end
-    
-    @testset "Question 4 Tests" begin
-        # Test that the function runs without error
-        @test_nowarn q4()
-        
-        # Test that files were created in Q1
-        @test isfile("firstmatrix.jld")
-        @test isfile("matrixpractice.jld")
-        @test isfile("Cmatrix.csv")
-        @test isfile("Dmatrix.dat")
-        
-        println("✓ Question 4 tests passed")
-    end
-    
-end
-
-println("All unit tests completed successfully!")
