@@ -126,4 +126,3 @@ startval = zeros(K*(J-1))  # or try rand(K*(J-1)), rand(K*(J-1)).*2 .- 1, etc.
 
 result = optimize(b -> mlogit(b, X, y), startval, LBFGS(), Optim.Options(g_tol=1e-5))
 println("Estimated coefficients: ", Optim.minimizer(result))
-
