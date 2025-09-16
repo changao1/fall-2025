@@ -99,10 +99,13 @@ freqtable(df, :occupation) # problem solved
 X = [ones(size(df,1),1) df.age df.race.==1 df.collgrad.==1]
 y = df.occupation
 
+
 function mlogit(alpha, X, d)
+
     N, K = size(X)
+    
     J = 7  # number of choices
-    base = J  # base category
+    base = J
     beta = reshape(alpha, K, J-1)  # K x (J-1)
     ll = 0.0
     for i in 1:N
@@ -116,10 +119,11 @@ function mlogit(alpha, X, d)
 end
 
 
+
 K = size(X,2)
 J = 7
 startval = zeros(K*(J-1))  # or try rand(K*(J-1)), rand(K*(J-1)).*2 .- 1, etc.
 
-result = optimize(b -> mlogit(b, X, y), startval, LBFGS(); g_tol=1e-5)
+result = optimize(b -> mlogit(b, X, y), startval, LBFGS(), Optim.Options(g_tol=1e-5))
 println("Estimated coefficients: ", Optim.minimizer(result))
 
