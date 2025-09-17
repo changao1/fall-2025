@@ -39,3 +39,4 @@ References/*.tex
 References/*.pdf
 References/TrainTextbook/*.pdf
 Exams/
+.DS_Store
