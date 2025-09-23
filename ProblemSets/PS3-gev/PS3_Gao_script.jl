@@ -9,3 +9,5 @@ include("PS3_Gao_source.jl")
 # Execute the function
 allwrap()
 # The outcome is the same as Stata.
+
+include("PS3_Gao_tests.jl")

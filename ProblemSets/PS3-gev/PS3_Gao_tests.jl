@@ -5,7 +5,7 @@ using DataFrames, CSV, HTTP, LinearAlgebra, Statistics
 
 include("PS3_Gao_source.jl") 
 
-# cd(@__DIR__)
+cd(@__DIR__)
 
 # --- Unit Tests for mlogit_with_Z ---
 @testset "mlogit_with_Z Unit Tests" begin

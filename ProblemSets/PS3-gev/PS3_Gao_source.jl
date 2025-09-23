@@ -9,7 +9,7 @@ function load_data(url)
     Z = hcat(df.elnwage1, df.elnwage2, df.elnwage3, df.elnwage4, 
              df.elnwage5, df.elnwage6, df.elnwage7, df.elnwage8)
     y = df.occupation
-    return df, X, Z, y
+    return X, Z, y
 end
 
 #---------------------------------------------------
@@ -85,9 +85,13 @@ function nested_logit_with_Z(theta, X, Z, y, nesting_structure)
     
     # Create coefficient matrix for nested structure
     # First K columns for WC nest, next K for BC nest, zeros for Other
-    bigAlpha = [repeat(alpha[1:K], 1, length(nesting_structure[1])) 
-                repeat(alpha[K+1:2K], 1, length(nesting_structure[2])) 
-                zeros(K)]
+    bigAlpha = zeros(K, J)
+    bigAlpha[:, nesting_structure[1]] .= repeat(alpha[1:K], 1, length(nesting_structure[1]))
+    bigAlpha[:, nesting_structure[2]] .= repeat(alpha[K+1:2K], 1, length(nesting_structure[2]))
+    # Other occupations have zero coefficients
+    # bigAlpha = [repeat(alpha[1:K], 1, length(nesting_structure[1])) 
+    #             repeat(alpha[K+1:2K], 1, length(nesting_structure[2])) 
+    #             zeros(K)]
     
     # TODO: Implement nested logit probability calculation
     # This is complex - refer to the formula in the problem set
@@ -100,11 +104,11 @@ function nested_logit_with_Z(theta, X, Z, y, nesting_structure)
     # Fill in: compute linear indices for each choice
     for j = 1:J
         if j in nesting_structure[1]  # White collar
-            # lidx[:,j] = exp.((X*bigAlpha[:,j] .+ (Z[:,j] .- Z[:,J])*gamma) ./ lambda[1])
+            lidx[:,j] = exp.((X*bigAlpha[:,j] .+ (Z[:,j] .- Z[:,J])*gamma) ./ lambda[1])
         elseif j in nesting_structure[2]  # Blue collar
-            # lidx[:,j] = exp.((X*bigAlpha[:,j] .+ (Z[:,j] .- Z[:,J])*gamma) ./ lambda[2])
+            lidx[:,j] = exp.((X*bigAlpha[:,j] .+ (Z[:,j] .- Z[:,J])*gamma) ./ lambda[2])
         else  # Other
-            # lidx[:,j] = exp.(zeros(N))
+            lidx[:,j] = exp.(zeros(N))
         end
     end
     
@@ -112,17 +116,21 @@ function nested_logit_with_Z(theta, X, Z, y, nesting_structure)
     for j = 1:J
         if j in nesting_structure[1]
             # num[:,j] = lidx[:,j] .* (sum of lidx for WC nest)^(lambda[1]-1)
+            num[:,j] = lidx[:,j] .* sum(lidx[:nesting_structure[1]],dims=2).^(lambda[1]-1)
         elseif j in nesting_structure[2]
             # num[:,j] = lidx[:,j] .* (sum of lidx for BC nest)^(lambda[2]-1)
+            num[:,j] = lidx[:,j] .* sum(lidx[:nesting_structure[2]],dims=2).^(lambda[2]-1)
         else
             # num[:,j] = lidx[:,j]
+            num[:,j] = lidx[:,j]
         end
         # dem .+= num[:,j]
+        dem .+= num[:,j]
     end
     
     # Fill in: compute probabilities and log-likelihood
-    # P = num ./ repeat(dem, 1, J)
-    # loglike = -sum(bigY .* log.(P))
+    P = num ./ repeat(dem, 1, J)
+    loglike = -sum(bigY .* log.(P))
     
     return loglike
 end
@@ -165,7 +173,7 @@ end
 function allwrap()
     # Load data
     url = "https://raw.githubusercontent.com/OU-PhD-Econometrics/fall-2025/master/ProblemSets/PS3-gev/nlsw88w.csv"
-    df, X, Z, y = load_data(url)
+    X, Z, y = load_data(url)
     
     println("Data loaded successfully!")
     println("Sample size: ", size(X, 1))
@@ -179,8 +187,8 @@ function allwrap()
     # TODO: Estimate nested logit
     println("\n=== NESTED LOGIT RESULTS ===")
     nesting_structure = [[1, 2, 3], [4, 5, 6, 7]]  # WC and BC occupations
-    # nlogit_theta_hat = optimize_nested_logit(X, Z, y, nesting_structure)
-    # println("Estimates: ", nlogit_theta_hat)
+    nlogit_theta_hat = optimize_nested_logit(X, Z, y, nesting_structure)
+    println("Estimates: ", nlogit_theta_hat)
 end
 
 # Uncomment to run
