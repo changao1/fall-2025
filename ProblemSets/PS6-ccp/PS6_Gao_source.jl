@@ -4,9 +4,6 @@ ECON 6343: Econometrics III
 Rust (1987) Bus Engine Replacement Model - CCP Estimation
 =#
 
-# Load required packages
-using Optim, HTTP, GLM, LinearAlgebra, Random, Statistics, DataFrames, DataFramesMeta, CSV
-
 include("create_grids.jl")
 
 #========================================
@@ -14,8 +11,7 @@ QUESTION 1: Data Loading and Reshaping
 ========================================#
 
 function load_and_reshape_data(url::String)
-
-    # url = "https://raw.githubusercontent.com/OU-PhD-Econometrics/fall-2025/master/ProblemSets/PS5-ddc/busdataBeta0.csv"
+    # Load data
     df = CSV.read(HTTP.get(url).body, DataFrame)
     
     # Create bus id variable
@@ -44,11 +40,39 @@ function load_and_reshape_data(url::String)
     dfx_long = @transform(dfx_long, :time = kron(collect(1:20), ones(size(df,1))))
     select!(dfx_long, Not(:variable))
     
-    # Join reshaped dataframes back together
+    # Next reshape the odometer variable (Odo1-Odo20)
+    dfx = @select(df, :bus_id, :Odo1, :Odo2, :Odo3, :Odo4, :Odo5, :Odo6, :Odo7, 
+                      :Odo8, :Odo9, :Odo10, :Odo11, :Odo12, :Odo13, :Odo14, :Odo15,
+                      :Odo16, :Odo17, :Odo18, :Odo19, :Odo20)
+    dfx_long = DataFrames.stack(dfx, Not([:bus_id]))
+    rename!(dfx_long, :value => :Odometer)
+    dfx_long = @transform(dfx_long, :time = kron(collect(1:20), ones(size(df,1))))
+    select!(dfx_long, Not(:variable))
+    
+    # Reshape the mileage state variable (Xst1-Xst20)
+    dfxst = @select(df, :bus_id, :Xst1, :Xst2, :Xst3, :Xst4, :Xst5, :Xst6, :Xst7,
+                        :Xst8, :Xst9, :Xst10, :Xst11, :Xst12, :Xst13, :Xst14, :Xst15,
+                        :Xst16, :Xst17, :Xst18, :Xst19, :Xst20)
+    dfxst_long = DataFrames.stack(dfxst, Not([:bus_id]))
+    rename!(dfxst_long, :value => :Xstate)
+    dfxst_long = @transform(dfxst_long, :time = kron(collect(1:20), ones(size(df,1))))
+    select!(dfxst_long, Not(:variable))
+    
+    # Add the route usage state variable (Zst - constant per bus)
+    dfzst = @select(df, :bus_id, :Zst)
+    
+    # Join all reshaped dataframes back together
     df_long = leftjoin(dfy_long, dfx_long, on = [:bus_id, :time])
+    df_long = leftjoin(df_long, dfxst_long, on = [:bus_id, :time])
+    df_long = leftjoin(df_long, dfzst, on = [:bus_id])
     sort!(df_long, [:bus_id, :time])
-
-    return df_long
+    
+    # Get Xstate and Zstate as arrays for later use
+    Xstate = Matrix(df[:, [Symbol("Xst$i") for i in 1:20]])
+    Zstate = Vector(df[:, :Zst])
+    Branded = Vector(df[:, :Branded])
+    
+    return df_long, Xstate, Zstate, Branded
 end
 
 
@@ -73,13 +97,8 @@ Estimate a flexible logit model with fully interacted terms up to 7th order.
 - Remember: Odometer * RouteUsage * Branded * time means all interactions up to the product of all four
 """
 function estimate_flexible_logit(df::DataFrame)
-
-     flex_logit = glm(@formula(Y ~ Odometer * RouteUsage * Branded * time * time * Odometer * RouteUsage), 
-                     df, 
-                     Binomial(), 
-                     LogitLink())
-
-    
+    flex_logit = glm(@formula(Y ~ Odometer * Odometer * RouteUsage * RouteUsage * Branded * time * time), 
+                    df, Binomial(), LogitLink())
     return flex_logit
 end
 
@@ -103,16 +122,13 @@ Construct the state space grid for all possible states.
 - `state_df::DataFrame`: Data frame with all possible state combinations
 
 """
-function construct_state_space(xbin::Int, zbin::Int, xval::Vector, zval::Matrix)
-function construct_state_space(xbin::Int, zbin::Int, xval::Vector, zval::Vector)
-    
+
+function construct_state_space(xbin::Int, zbin::Int, xval::Vector, zval::Vector, xtran::Matrix)
     state_df = DataFrame(
-        Odometer = kron(xval, ones(zbin)),
-        RouteUsage = kron(ones(xbin), zval),
-        Branded = zeros(size(xtrans,1)),  # Placeholder, will be updated in loop   
-        time = zeros(size(xtrans,1))  # Placeholder, will be updated in loop
-        Branded = zeros(xbin * zbin),  # Placeholder, will be updated in loop   
-        time = zeros(xbin * zbin)  # Placeholder, will be updated in loop
+        Odometer = kron(ones(zbin), xval),
+        RouteUsage = kron(zval, ones(xbin)),
+        Branded = zeros(size(xtran,1)),  # Placeholder, will be updated in loop   
+        time = zeros(size(xtran,1))  # Placeholder, will be updated in loop
     )
     
     return state_df
@@ -139,40 +155,26 @@ Compute future value terms using CCPs from the flexible logit.
 
 # Returns
 - `FV::Array{Float64,3}`: Future value array (states × brand × time)
-
-# TODO:
-- Initialize FV as zeros(size(xtran,1), 2, T+1)
-- Loop over t = 2 to T
-- Loop over brand states b ∈ {0,1}
-- Update state_df with current t and b values
-- Use predict() to get p0 (probability of replacement)
-- Store -β * log(p0) in FV[:, b+1, t+1]
 """
 function compute_future_values(state_df::DataFrame, 
-                                flex_logit::GeneralizedLinearModel,
-                                xtran::Matrix, 
-                                xbin::Int, 
+                                flex_logit,
+                                xtran::Matrix,
+                                xbin::Int,
+                                zbin::Int, 
                                 T::Int, 
                                 β::Float64)
     
 
     FV = zeros(xbin*zbin, 2, T+1)
-    zbin = Int(size(state_df, 1) / xbin)
-    FV = zeros(size(state_df, 1), 2, T+1)
     
     for t in 2:T
         for b in 0:1
             # Update state_df
             @with(state_df, :time .= t)
-            state_df.time .= t
             @with(state_df, :Branded .= b)
 
-            
-            # Compute p0 using predict()
-            # p0 = predict(flex_logit, state_df, type = :response)
-            p0 = 1 .- convert(Array{Float64}, predict(flex_logit, state_df, type = :response))  # Probability of not replacing
+            p0 = 1 .- convert(Array{Float64}, predict(flex_logit, state_df)) # Probability of not replacing
             # Store -β * log.(p0) in FV
-            FV[:, b+1, t+1] = -β * log.(p0)
             FV[:, b+1, t] = -β * log.(p0)
         end
     end
@@ -201,45 +203,27 @@ Map future values from state space to actual data.
 
 # Returns
 - `FVT1::Vector`: Future value term for each observation in long format
-
-# TODO:
-- Initialize FVT1 matrix to store results
-- Loop over observations i and time periods t
-- Compute row indices in xtran based on Xstate[i] and Zstate[i]
-- Calculate FVT1[i,t] = (xtran[row1,:] - xtran[row0,:])'* FV[row0:row0+xbin-1, B[i]+1, t+1]
-- Convert to long format vector
 """
 function compute_fvt1(df_long::DataFrame, 
                       FV::Array{Float64,3},
                       xtran::Matrix,
-                      Xstate::Vector,
-                      Zstate::Vector,
-                      xbin::Int)
-                      B::Vector,
+                      Xstate,
+                      Zstate,
                       xbin::Int,
-                      T::Int)
+                      B)
     
     # Get dimensions
     N = length(unique(df_long.bus_id))  # Adjust column name as needed
     T = 20
-    N = size(df_long, 1) ÷ T
-    
 
     FVT1 = zeros(N, T)
-    FVT1 = zeros(N*T)
     
     for i in 1:N
         row0 = 1 + (Zstate[i]-1)*xbin
-        bus_indices = (1:T) .+ (i-1)*T
-        row0_z = 1 + (Zstate[bus_indices[1]]-1)*xbin
         for t in 1:T
             # Compute row0 and row1 indices
             row1 = row0 + Xstate[i,t]-1
-            FVT1[i,t] = dot((xtran[row1,:] .- xtran[row0,:]), FV[row0:row0+xbin-1, B[i]+1, t+1])
-            
-            current_obs_index = (i-1)*T + t
-            row1_x = row0_z + Xstate[current_obs_index] - 1
-            FVT1[current_obs_index] = dot((xtran[row1_x,:] .- xtran[row0_z,:]), FV[row0_z:row0_z+xbin-1, B[current_obs_index]+1, t+1])
+            FVT1[i,t] = (xtran[row1, :] .- xtran[row0, :])⋅FV[row0:row0+xbin-1, B[i]+1, t+1]
         end
     end
     
@@ -247,7 +231,6 @@ function compute_fvt1(df_long::DataFrame,
     fvt1_long = FVT1'[:]
     
     return fvt1_long
-    return FVT1
 end
 
 
@@ -262,29 +245,17 @@ Estimate structural parameters θ using GLM with offset.
 
 # Returns
 - Fitted GLM model with structural parameters
-
-# TODO:
-- Add fvt1 as a column to df_long
-- Estimate logit with Odometer and Branded as regressors
-- Use offset argument to include future value with coefficient = 1
 """
 function estimate_structural_params(df_long::DataFrame, fvt1::Vector)
-    # TODO: Add future value to data frame
-    # df_long = @transform(df_long, fv = fvt1)
-    df_with_fv = copy(df_long)
-    df_with_fv.fv = fvt1
+    # Add future value to data frame
+    df_long = @transform(df_long, :fv = fvt1)
     
-    # TODO: Estimate structural model
-    # theta_hat = glm(@formula(Y ~ Odometer + Branded), 
-    #                 df_long, 
-    #                 Binomial(), 
-    #                 LogitLink(), 
-    #                 offset=df_long.fv)
+    # Estimate structural model
     theta_hat = glm(@formula(Y ~ Odometer + Branded), 
-                    df_with_fv, 
+                    df_long, 
                     Binomial(), 
                     LogitLink(), 
-                    offset=df_with_fv.fv)
+                    offset=df_long.fv)
     
     return theta_hat
 end
@@ -300,10 +271,6 @@ MAIN WRAPPER FUNCTION
 Main wrapper function to estimate the Rust model using CCPs.
 This function calls all the helper functions in sequence.
 
-# TODO:
-- Call each function in order
-- Pass results between functions appropriately
-- Print results at the end
 """
 function main()
     println("="^60)
@@ -312,15 +279,12 @@ function main()
     
     # Set parameters
     β = 0.9  # Discount factor
-    T = 20
-
-    zval, zbin, xval, xbin, xtran = create_grids()
-    
-    
+    # T = 20
+  
     # Step 1: Load and reshape data
     println("\nStep 1: Loading and reshaping data...")
     url = "https://raw.githubusercontent.com/OU-PhD-Econometrics/fall-2025/master/ProblemSets/PS5-ddc/busdata.csv"
-    df_long = load_and_reshape_data(url)
+    df_long, Xstate, Zstate, Branded = load_and_reshape_data(url)
     println("Data loaded with $(nrow(df_long)) rows and $(ncol(df_long)) columns.")
     println("First few rows of the data:")
     first(df_long, 5) |> println
@@ -334,46 +298,32 @@ function main()
     
     # Step 3a: Construct state transition matrices
     println("\nStep 3a: Constructing state transition matrices...")
-    xbin, zbin, xval, zval, xtran = create_grids()
+    zval, zbin, xval, xbin, xtran = create_grids()
 
     
     # Step 3b: Construct state space
     println("\nStep 3b: Constructing state space...")
-    state_df = construct_state_space(xbin, zbin, xval, zval, xtran)
-    state_df = construct_state_space(xbin, zbin, xval, zval)
-    
-    
+    statedf = construct_state_space(xbin, zbin, xval, zval, xtran)
+  
     # Step 3c: Compute future values
     println("\nStep 3c: Computing future values...")
-    FV = compute_future_values(state_df, flexlogitresults, xtran, xbin, zbin, 20, β)
-    FV = compute_future_values(state_df, flexlogitresults, xtran, xbin, T, β)
+    FV = compute_future_values(statedf, flexlogitresults, xtran, xbin, zbin, 20, β)
 
-    
     # Step 3d: Map to actual data
     println("\nStep 3d: Mapping future values to data...")
-    efvt1 = compute_fvt1(df_long, FV, xtran, df_long.Odometer, df_long.RouteUsage, xbin, df_long.branded)
-    return
-    # Discretize Odometer and RouteUsage to get state indices
-    Xstate = map(x -> findmin(abs.(xval .- x))[2], df_long.Odometer)
-    Zstate = map(z -> findmin(abs.(zval .- z))[2], df_long.RouteUsage)
-
-    fvt1 = compute_fvt1(df_long, FV, xtran, Xstate, Zstate, df_long.Branded, xbin, T)
+    efvt1 = compute_fvt1(df_long, FV, xtran, Xstate, Zstate, xbin, Branded)
     
     # Step 3e: Estimate structural parameters
     println("\nStep 3e: Estimating structural parameters...")
-    # TODO: Call estimate_structural_params()
-    theta_hat = estimate_structural_params(df_long, fvt1)
+    estimates = estimate_structural_params(df_long, efvt1)
     
     # Print results
     println("\n" * "="^60)
     println("RESULTS")
     println("="^60)
-    # TODO: Print coefficient estimates and standard errors
+
     println("Structural Parameter Estimates (θ):")
-    println(theta_hat)
+    println(estimates)
     
     return nothing
 end
-
-# Run the estimation (uncomment when ready to test)
-# @time main()
