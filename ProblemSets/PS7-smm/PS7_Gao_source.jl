@@ -1,5 +1,5 @@
 ################################################################################
-# Problem Set 7 - Source Code
+# Problem Set 7 - Starter Code
 # ECON 6343: Econometrics III
 # GMM and SMM Estimation
 ################################################################################
@@ -12,7 +12,7 @@ Returns: DataFrame, X matrix, log wage vector
 """
 function load_data(url)
     df = CSV.read(HTTP.get(url).body, DataFrame)
-    X = hcat(ones(size(df,1)), df.age, df.race.==1, df.collgrad.==1)
+    X = [ones(size(df,1)), df.age, df.race.==1, df.collgrad.==1]
     y = log.(df.wage)
     return df, X, y
 end
@@ -58,13 +58,13 @@ Arguments:
 Returns: scalar objective function value
 """
 function ols_gmm(β, X, y)
-    ŷ = X * β  # Predicted values
-
+    ŷ = X .* β  # Predicted values
+    
     g = y .- ŷ  # Moment vector (K×1)
-
+    
     # Hint: Use the identity matrix or just g'*g
     J = dot(g, g)  # Objective function value
-
+    
     return J
 end
 
@@ -98,7 +98,7 @@ function mlogit_mle(α, X, y)
         bigY[:,j] = y .== j
     end
     
-    bigα = [reshape(α,K,J-1) zeros(K)]
+    bigα = [reshape(alpha,K,J-1) zeros(K)]
     
     P = exp.(X*bigα) ./ sum.(eachrow(exp.(X*bigα)))
 
@@ -128,8 +128,8 @@ function mlogit_gmm(α, X, y)
         bigY[:,j] = y .== j
     end
     
-    bigα = [reshape(α,K,J-1) zeros(K)]
-
+    bigα = [reshape(alpha,K,J-1) zeros(K)]
+    
     P = exp.(X*bigα) ./ sum.(eachrow(exp.(X*bigα)))
     
     # Each element is: mean((d_ij - P_ij) * X_ik)
@@ -166,7 +166,7 @@ function mlogit_gmm_overid(α, X, y)
     end
     
     # TODO: Reshape and compute probabilities
-    bigα = [reshape(α,K,J-1) zeros(K)]
+    bigα = [reshape(alpha,K,J-1) zeros(K)]
     P = exp.(X*bigα) ./ sum.(eachrow(exp.(X*bigα)))
     
     # This creates an N*J dimensional vector
@@ -272,8 +272,8 @@ function sim_logit_w_gumbel(N=100_000, J=4)
     
     # generate choices based on Gumbel errors
     ε = rand(Gumbel(0,1), N, J)
-    Y = argmax.(eachrow(X * β .+ ε))
-
+    Y = argmax(eachrow(X * β .+ ε))
+    
     # Choose alternative that maximizes utility
     # Y_i = argmax_j (X_i'β_j + ε_ij)
     # Hint: Use argmax.(eachrow(...))
@@ -316,8 +316,8 @@ function mlogit_smm_overid(α, X, y, D)
     end
     
     bigỸ = zeros(N, J)
-
-    bigα = [reshape(α,K,J-1) zeros(K)]
+    
+    bigα = [reshape(alpha,K,J-1) zeros(K)]
     
     # P = exp.(X*bigα) ./ sum.(eachrow(exp.(X*bigα)))
 
@@ -389,7 +389,7 @@ function main()
     println("GMM estimates: ", β_hat_gmm.minimizer)
     println("OLS estimates: ", β_ols)
 
-
+return
     
     #--------------------------------------------------------------------------
     # Question 2: Multinomial Logit via MLE and GMM
@@ -418,31 +418,33 @@ function main()
 
     svals = svals[:,1:6] .- svals[:,7]
     svals = svals[:]
+    
 
-
-    α_hat_mle = optimize(a -> mlogit_mle(a, X, y),
-                         svals,
-                         LBFGS(),
-                         Optim.Options(g_tol=1e-5, iterations=100_000, show_trace=true))
-
-    println("MLE estimates: ", α_hat_mle.minimizer)
+    # α_hat_mle = optimize(a -> mlogit_mle(a, X, y), 
+    #                      svals, 
+    #                      LBFGS(), 
+    #                      Optim.Options(g_tol=1e-5, iterations=100_000, show_trace=true))
+    
+    # println("MLE estimates: ", α_hat_mle.minimizer)
 
     # starter = ...
 
-    α_hat_gmm_mle_start = optimize(a -> mlogit_gmm_overid(a, X, y),
-                                    α_hat_mle.minimizer,
+    α_hat_gmm_mle_start = optimize(a -> mlogit_gmm_overid(a, X, y), 
+                                    α_hat_mle.minimizer, 
                                     # starter,
-                                    LBFGS(),
+                                    LBFGS(), 
                                     Optim.Options(g_tol=1e-5, iterations=100_000, show_trace=true))
 
     println("GMM estimates (starting at MLE): ", α_hat_gmm_mle_start.minimizer)
     
 
-    α_hat_gmm_random_start = optimize(a -> mlogit_gmm_overid(a, X, y), 
-                                       rand(length(svals)), 
-                                       LBFGS(), 
-                                       Optim.Options(g_tol=1e-5, iterations=100_000, show_trace=true))
-    println("GMM estimates (random start): ", α_hat_gmm_random_start.minimizer)
+    # α_hat_gmm_random_start = optimize(a -> mlogit_gmm_overid(a, X, y), 
+    #                                    rand(length(svals)), 
+    #                                    LBFGS(), 
+    #                                    Optim.Options(...))
+    
+    # TODO: Compare estimates and objective function values
+    # Discuss: Is the objective function globally concave?
     
     #--------------------------------------------------------------------------
     # Question 3: Simulate and Recover Parameters
@@ -451,16 +453,23 @@ function main()
     println("Question 3: Simulate Data and Recover Parameters")
     println("="^80)
     
+    # TODO: Simulate data
     ySim, XSim = sim_logit(100_000, 4)
     
-
-    α_hat_sim = optimize(a -> mlogit_mle(a, XSim, ySim), 
-                         rand(12),
-                         LBFGS(), 
-                         Optim.Options(g_tol=1e-5, iterations=100_000, show_trace=true))
-
-    println("Recovered parameters from simulated data: ", α_hat_sim.minimizer)
-
+    # TODO: Estimate parameters from simulated data
+    # α_hat_sim = optimize(a -> mlogit_mle(a, XSim, ySim), 
+    #                      rand(9),  # 3 covariates × 3 non-base alternatives
+    #                      LBFGS(), 
+    #                      Optim.Options(...))
+    
+    # TODO: Compare estimated parameters to true parameters
+    # println("True β used in simulation:")
+    # println("Estimated β from simulated data:")
+    # println("Are they close?")
+    
+    # TODO: Try alternative simulation method with Gumbel
+    # ySim_gumbel, XSim_gumbel = sim_logit_w_gumbel(100_000, 4)
+    # Estimate and compare
     
     #--------------------------------------------------------------------------
     # Question 5: Multinomial Logit via SMM
@@ -473,24 +482,54 @@ function main()
     # Note: This will be slow! Start with small D (like 100) for testing
     # Then increase to 1000-2000 for final estimates
     
-    α_hat_smm = optimize(th -> mlogit_smm_overid(th, X, y, 100),  # Small D for testing
-                         α_hat_mle.minimizer,  # Use MLE as starting values
-                         LBFGS(), 
-                         Optim.Options(g_tol=1e-6, iterations=1000, show_trace=true))
+    # α_hat_smm = optimize(th -> mlogit_smm_overid(th, X, y, 100),  # Small D for testing
+    #                      α_hat_mle.minimizer,  # Use MLE as starting values
+    #                      LBFGS(), 
+    #                      Optim.Options(g_tol=1e-6, iterations=1000, show_trace=true))
     
-    # Compare SMM estimates to MLE and GMM estimates
-    println("MLE estimates: ", α_hat_mle.minimizer)
-    println("GMM estimates: ", α_hat_gmm_mle_start.minimizer)
-    println("SMM estimates: ", α_hat_smm.minimizer)
+    # TODO: Compare SMM estimates to MLE and GMM estimates
+    # println("MLE estimates: ", α_hat_mle.minimizer)
+    # println("GMM estimates: ", α_hat_gmm_mle_start.minimizer)
+    # println("SMM estimates: ", α_hat_smm.minimizer)
     
     println("\n" * "="^80)
     println("Estimation Complete!")
     println("="^80)
-
+    
+    # Return estimates for testing
+    # return β_hat_gmm, α_hat_mle, α_hat_gmm_mle_start, α_hat_gmm_random_start, α_hat_sim, α_hat_smm
 end
 
+################################################################################
+# Run main function
+################################################################################
+
+# Uncomment to run:
+# @time main()
 
 
+################################################################################
+# Helpful Tips and Reminders
+################################################################################
 
+# Tips for debugging:
+# 1. Start with small sample sizes (N=1000) to test your code quickly
+# 2. Use show_trace=true in Optim.Options to monitor convergence
+# 3. Check dimensions carefully: K×(J-1) parameters for J-choice logit
+# 4. For SMM, start with small D (like 10-100) for testing
+# 5. Set random seeds for reproducibility
+# 6. Compare your results to closed-form solutions when available
 
+# Common pitfalls:
+# - Forgetting to normalize one alternative's coefficients to zero
+# - Incorrect reshaping of parameter vector
+# - Dimension mismatches in matrix operations
+# - Not using enough simulation draws in SMM (D should be 1000+)
+# - Starting values that are too far from the optimum
 
+# Questions to think about:
+# - Why does GMM give the same answer as MLE for multinomial logit?
+# - What's the advantage of using over-identified moments?
+# - When would SMM be preferred over MLE?
+# - How sensitive are the estimates to starting values?
+# - What happens if you use a different weighting matrix?

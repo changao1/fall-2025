@@ -1,4 +1,4 @@
-using Random, LinearAlgebra, Statistics, Optim, DataFrames, DataFramesMeta, CSV, HTTP, GLM, JuliaFormatter, FreqTables, Distributions
+using Random, LinearAlgebra, Statistics, Optim, DataFrames, DataFramesMeta, CSV, HTTP, GLM, JuliaFormatter
 
 
 cd(@__DIR__)

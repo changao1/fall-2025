@@ -1,5 +1,6 @@
 using Test
-using Random, LinearAlgebra, Statistics, Optim, DataFrames, DataFramesMeta, CSV, HTTP, GLM, FreqTables, Distributions
+using Random, LinearAlgebra, Statistics, Optim, DataFrames, DataFramesMeta, CSV, HTTP, GLM
+using Distributions
 
 include("PS7_Gao_source.jl")
 
