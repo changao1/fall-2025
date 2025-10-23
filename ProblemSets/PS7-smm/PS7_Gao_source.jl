@@ -200,42 +200,36 @@ Arguments:
 Returns: (Y, X) where Y is N×1 choice vector, X is N×K covariate matrix
 """
 function sim_logit(N=100_000, J=4)
-    # Generate X matrix
+    # TODO: Generate X matrix
     # Include intercept, and K-1 other covariates with different distributions
     # Example: X = hcat(ones(N), randn(N), 2 .+ 2 .* randn(N))
-    X = hcat(ones(N), randn(N), randn(N) .> 0.5, 10 .* randn(N))
-
-    #Create coefficient matrix β (dimension K×J)
+    # X = ...
+    
+    # TODO: Create coefficient matrix β (dimension K×J)
     # Last column should be zeros (normalization)
     # Example for J=4: β = hcat([1, -1, 0.5], [-2, 0.5, 0.3], [0, -0.5, 2], zeros(3))
     if J == 4
-        β = hcat([1.0, -1.0, 0.5, 0.25], 
-                  [-2.0, 0.5, 0.3, -0.4], 
-                  [0.0, -0.5, 2.0, 1.0], 
-                  zeros(4))
+        # β = ...
     else
         # Generate random coefficients
-        β = -2 .+ 4 .* rand(size(X,2), J)
-        # β[:,end] .= 0.0  # Normalize last alternative
-        β = β.- β[:,end]  # Normalize last alternative
+        # β = ...
     end
     
-    # Compute choice probabilities P (dimension N×J)
+    # TODO: Compute choice probabilities P (dimension N×J)
     # P_ij = exp(X_i'β_j) / Σ_k exp(X_i'β_k)
-    P = exp.(X*β) ./ sum.(eachrow(exp.(X*β)))
-    @assert size(P) == (N, J)
+    # P = ...
     
-    # Draw uniform random variables
-    draw = rand(N)
+    # TODO: Draw uniform random variables
+    # draw = rand(N)
     
-    # Generate choices based on cumulative probabilities
+    # TODO: Generate choices based on cumulative probabilities
     # For each person i, find j such that:
     # Σ_{k=j}^J P_ik > ε_i
     Y = zeros(N)
-    for j = 1:J
-        # Hint: sum(P[:,j:J]; dims=2) gives cumulative probabilities
-        Y += (sum(P[:,j:J]; dims=2) .> draw)
-    end
+    # for j = 1:J
+    #     # Hint: sum(P[:,j:J]; dims=2) gives cumulative probabilities
+    #     # Y += ...
+    # end
     
     return Y, X
 end
@@ -252,29 +246,14 @@ generates choices from a multinomial logit model.
 This is often simpler and more numerically stable than the inverse CDF method.
 """
 function sim_logit_w_gumbel(N=100_000, J=4)
-    # Generate X and β (same as above)
-    X = hcat(ones(N), randn(N), randn(N) .> 0.5, 10 .* randn(N))
-
-    #Create coefficient matrix β (dimension K×J)
-    # Last column should be zeros (normalization)
-    # Example for J=4: β = hcat([1, -1, 0.5], [-2, 0.5, 0.3], [0, -0.5, 2], zeros(3))
-    if J == 4
-        β = hcat([1.0, -1.0, 0.5, 0.25], 
-                  [-2.0, 0.5, 0.3, -0.4], 
-                  [0.0, -0.5, 2.0, 1.0], 
-                  zeros(4))
-    else
-        # Generate random coefficients
-        β = -2 .+ 4 .* rand(size(X,2), J)
-        # β[:,end] .= 0.0  # Normalize last alternative
-        β = β.- β[:,end]  # Normalize last alternative
-    end
+    # TODO: Generate X and β (same as above)
+    # X = ...
+    # β = ...
     
-    # generate choices based on Gumbel errors
-    ε = rand(Gumbel(0,1), N, J)
-    Y = argmax(eachrow(X * β .+ ε))
+    # TODO: Draw Gumbel errors
+    # ε = rand(Gumbel(0,1), N, J)
     
-    # Choose alternative that maximizes utility
+    # TODO: Choose alternative that maximizes utility
     # Y_i = argmax_j (X_i'β_j + ε_ij)
     # Hint: Use argmax.(eachrow(...))
     # Y = ...
@@ -319,33 +298,33 @@ function mlogit_smm_overid(α, X, y, D)
     
     bigα = [reshape(alpha,K,J-1) zeros(K)]
     
-    # P = exp.(X*bigα) ./ sum.(eachrow(exp.(X*bigα)))
+    P = exp.(X*bigα) ./ sum.(eachrow(exp.(X*bigα)))
 
-    # loglike = - sum(bigY .* log.(P))  # Log-likelihood for reference
+    loglike = - sum(bigY .* log.(P))  # Log-likelihood for reference
 
-    # return loglike
-# end
+    return loglike
+end
     
     Random.seed!(1234)  # For reproducibility
-    for d = 1:D
-        # Draw Gumbel shocks
-        ε = rand(Gumbel(0,1), N, J)
-        
-        # Generate simulated choices
-        # ỹ = argmax_j(X*bigα + ε)
-        ỹ = argmax.(eachrow(X * bigα .+ ε))
-        
-        # Update frequency counts
-        for j = 1:J
-            bigỸ[:,j] .+= (ỹ .== j) * (1/D)
-        end
-    end
+    # for d = 1:D
+    #     # Draw Gumbel shocks
+    #     # ε = ...
+    #     
+    #     # Generate simulated choices
+    #     # ỹ = argmax_j(X*bigα + ε)
+    #     # ỹ = ...
+    #     
+    #     # Update frequency counts
+    #     # for j = 1:J
+    #     #     bigỸ[:,j] .+= (ỹ .== j) * (1/D)
+    #     # end
+    # end
     
-    # Compute moment vector (actual - simulated frequencies)
-    g = bigY[:] .- bigỸ[:]
+    # TODO: Compute moment vector (actual - simulated frequencies)
+    # g = bigY[:] .- bigỸ[:]
     
-    # Compute objective function
-    J = dot(g, g)
+    # TODO: Compute objective function
+    # J = ...
     
     return J
 end
@@ -454,7 +433,7 @@ return
     println("="^80)
     
     # TODO: Simulate data
-    ySim, XSim = sim_logit(100_000, 4)
+    # ySim, XSim = sim_logit(100_000, 4)
     
     # TODO: Estimate parameters from simulated data
     # α_hat_sim = optimize(a -> mlogit_mle(a, XSim, ySim), 
@@ -478,7 +457,7 @@ return
     println("Question 5: Multinomial Logit via SMM")
     println("="^80)
     
-    # Estimate via SMM
+    # TODO: Estimate via SMM
     # Note: This will be slow! Start with small D (like 100) for testing
     # Then increase to 1000-2000 for final estimates
     
