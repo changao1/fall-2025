@@ -1,8 +1,9 @@
---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------
       name:  <unnamed>
-       log:  C:\Users\rans0001\Dropbox\GitHubReposTeaching\phd-metrics-fall-2025\In-classCoding\PCM\mobility_activity.log
+       log:  /Users/ChangGao/Documents/GitHub/fall-2025/In-classCoding/PCM/mobility_activity.
+> log
   log type:  text
- opened on:  15 Oct 2025, 15:18:00
+ opened on:  28 Oct 2025, 09:28:52
 
 . 
 . * Set seed for reproducibility
@@ -14,7 +15,8 @@
 . ********************************************************************************
 . 
 . * Import data from GitHub
-. import delimited "https://raw.githubusercontent.com/OU-PhD-Econometrics/fall-2025/master/LectureNotes/11-SubjExp/SCEmobilityExample.csv", clear
+. import delimited "https://raw.githubusercontent.com/OU-PhD-Econometrics/fall-2025/master/Le
+> ctureNotes/11-SubjExp/SCEmobilityExample.csv", clear
 (encoding automatically selected: ISO-8859-1)
 (19 vars, 55,608 obs)
 
@@ -25,10 +27,10 @@
 Contains data
  Observations:        55,608                  
     Variables:            19                  
---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------
 Variable      Storage   Display    Value
     name         type    format    label      Variable label
---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------
 scuid           long    %12.0g                
 ratio           float   %9.0g                 
 dist            float   %9.0g                 
@@ -48,7 +50,7 @@ schqual         byte    %8.0g
 withincitymove  byte    %8.0g                 
 copyhome        byte    %8.0g                 
 blkscen         byte    %8.0g                 
---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------
 Sorted by: 
      Note: Dataset has changed since last saved.
 
@@ -80,6 +82,10 @@ withincity~e |     55,608   -.0951662     .293447         -1          0
      blkscen |     55,608    24.10783     12.4167          1         48
 
 . 
+end of do-file
+
+. do "/var/folders/x_/gs10qj190cxc3y_fny_71cxh0000gn/T//SD12185.000000"
+
 . ********************************************************************************
 . * 2. DATA EXPLORATION
 . ********************************************************************************
@@ -123,9 +129,14 @@ withincity~e |     55,608   -.0951662     .293447         -1          0
 (bin=30, start=-6.906755, width=.46045033)
 
 . graph export ratio_hist.png, replace
-file ratio_hist.png saved as PNG format
+file /Users/ChangGao/Documents/GitHub/fall-2025/In-classCoding/PCM/ratio_hist.png saved as
+    PNG format
 
 . 
+end of do-file
+
+. do "/var/folders/x_/gs10qj190cxc3y_fny_71cxh0000gn/T//SD12185.000000"
+
 . ********************************************************************************
 . * 3. BASIC ESTIMATION: MEDIAN REGRESSION
 . ********************************************************************************
@@ -231,9 +242,10 @@ withincitymove |   1.697409   .0578172    29.36   0.000     1.584087    1.810731
 . estimates store basic_qreg
 
 . 
-. ********************************************************************************
-. * 3B. OLS FOR COMPARISON (INCONSISTENT)
-. ********************************************************************************
+end of do-file
+
+. do "/var/folders/x_/gs10qj190cxc3y_fny_71cxh0000gn/T//SD12185.000000"
+
 . 
 . * OLS regression
 . regress ratio income homecost crime dist family size mvcost taxes ///
@@ -349,6 +361,10 @@ withincity~e |     1.795       1.795       1.697
                                       Legend: b/se
 
 . 
+end of do-file
+
+. do "/var/folders/x_/gs10qj190cxc3y_fny_71cxh0000gn/T//SD12185.000000"
+
 . ********************************************************************************
 . * 4. BOOTSTRAPPED STANDARD ERRORS
 . ********************************************************************************
@@ -359,7 +375,8 @@ withincity~e |     1.795       1.795       1.697
 >         norms schqual withincitymove copyhome moved
 (running qreg on estimation sample)
 
-Bootstrap replications (100): .........10.........20.........30.........40.........50.........60.........70.........80.........90.........100 done
+Bootstrap replications (100): .........10.........20.........30.........40.........50........
+> .60.........70.........80.........90.........100 done
 
 Median regression                                   Number of obs =     55,608
   Raw sum of deviations 86476.52 (about 0)
@@ -448,12 +465,14 @@ Non-pecuniary moving cost: $-64115.612
 >         norms schqual withincitymove copyhome moved
 (running qreg on estimation sample)
 
-Bootstrap replications (100): .........10.........20.........30.........40.........50.........60.........70.........80.........90.........100 done
+Bootstrap replications (100): .........10.........20.........30.........40.........50........
+> .60.........70.........80.........90.........100 done
 
 Bootstrap results                                       Number of obs = 55,608
                                                         Replications  =    100
 
-      Command: qreg ratio income homecost crime dist family size mvcost taxes norms schqual withincitymove copyhome moved
+      Command: qreg ratio income homecost crime dist family size mvcost taxes norms schqual
+                   withincitymove copyhome moved
     crime_wtp: -(exp(-_b[crime]/_b[income]*ln(2))-1)*65000
      dist_wtp: -(exp(-_b[dist]/_b[income])-1)*65000
     moved_wtp: -(exp(-_b[moved]/_b[income])-1)*65000
@@ -508,7 +527,8 @@ withincity~e |     1.697***       1.697***
 . 
 . log close
       name:  <unnamed>
-       log:  C:\Users\rans0001\Dropbox\GitHubReposTeaching\phd-metrics-fall-2025\In-classCoding\PCM\mobility_activity.log
+       log:  /Users/ChangGao/Documents/GitHub/fall-2025/In-classCoding/PCM/mobility_activity.
+> log
   log type:  text
- closed on:  15 Oct 2025, 15:32:47
---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ closed on:  28 Oct 2025, 09:39:37
+---------------------------------------------------------------------------------------------

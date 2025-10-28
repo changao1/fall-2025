@@ -3,6 +3,10 @@
 * Simplified Replication Exercise
 ********************************************************************************
 
+version 18.5
+
+cd ~/documents/Github/fall-2025/In-classCoding/PCM
+
 clear all
 set more off
 
