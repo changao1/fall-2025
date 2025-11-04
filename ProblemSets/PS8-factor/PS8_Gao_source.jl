@@ -6,7 +6,7 @@ Factor Models and Dimension Reduction
 =#
 
 
-# include("lgwt.jl")
+include("lgwt.jl")
 
 #==================================================================================
 # Question 1: Load data and estimate base regression
@@ -216,13 +216,11 @@ Prepare the data matrices needed for the factor model estimation.
 - `asvabs`: Matrix of all 6 ASVAB scores (N×6)
 """
 function prepare_factor_matrices(df::DataFrame)
-    # TODO: Create X matrix for wage equation (include constant at end)
     
-    # TODO: Extract y (logwage)
-    
-    # TODO: Create Xfac matrix for measurement equations
-    
-    # TODO: Create asvabs matrix
+    X = [df.black df.hispanic df.female df.schoolt df.gradHS df.grad4yr ones(size(df,1))]
+    y = df.logwage
+    Xfac = [df.black df.hispanic df.female ones(size(df,1))]
+    asvabs = [df.asvabAR df.asvabCS df.asvabMK df.asvabNO df.asvabPC df.asvabWK]
     
     return X, y, Xfac, asvabs
 end
@@ -282,37 +280,39 @@ function factor_model(θ::Vector{T}, X::Matrix, Xfac::Matrix, Meas::Matrix,
     J = size(Meas, 2)   # Number of ASVAB tests
     N = length(y)       # Number of observations
     
-    # TODO: Unpack parameters from θ vector
     # γ should be L×J matrix (reshape from θ[1:J*L])
+    γ = reshape(θ[1:J*L], L, J)
     # β should be K×1 vector
+    β = θ[J*L+1:J*L+K]                     # β parameters
     # α should be (J+1)×1 vector (factor loadings)
+    α = θ[J*L+K+1:J*L+K+J+1]               # α parameters
     # σ should be (J+1)×1 vector (standard deviations)
+    σ = θ[end-J:end]                 # σ parameters
+      
     
-    # TODO: Get quadrature nodes (ξ) and weights (ω) using lgwt()
+    
     # Recommended: lgwt(R, -5, 5) for standard normal integration
+    ξ, ω = lgwt(R, -5, 5)
     
     # Initialize likelihood storage
     like = zeros(T, N)
     
-    # TODO: Loop over quadrature points
     for r in 1:R
-        # TODO: For each ASVAB test j, compute:
-        # - Residuals: M_ij - Xfac*γ_j - α_j*ξ_r
-        # - Standardize by σ_j
-        # - Evaluate normal PDF
-        # - Store in Mlike[:,j]
-        
-        # TODO: For wage equation, compute:
-        # - Residuals: y_i - X*β - α_{J+1}*ξ_r  
-        # - Standardize by σ_{J+1}
-        # - Evaluate normal PDF
-        # - Store in Ylike
-        
-        # TODO: Update likelihood by:
-        # like += ω[r] * (product of all Mlike) * Ylike * φ(ξ_r)
+
+        Mlike = zeros(T, N, J)
+        for j in 1:J
+            Mres = Meas[:, j] .- Xfac * γ[:, j] .- α[j] * ξ[r]
+            sdj = sqrt(σ[j]^2)
+            Mlike[:, j] = pdf.(Normal(0, sdj), Mres)
+        end
+
+        Yres = y .- X * β .- α[end] * ξ[r]
+        sdY = sqrt(σ[end]^2)
+        Ylike = pdf.(Normal(0, sdY), Yres)
+
+        like += ω[r] .* prod(Mlike, dims=2)[:] .* Ylike .* pdf(Normal(0,1), ξ[r])
     end
     
-    # TODO: Return negative sum of log-likelihoods
     return -sum(log.(like))
 end
 
@@ -337,18 +337,19 @@ Run the full MLE estimation procedure for the factor model.
 4. Compute standard errors from inverse Hessian
 """
 function run_estimation(df::DataFrame, start_vals::Vector)
-    # TODO: Prepare data matrices
+    X, y, Xfac, asvabs = prepare_factor_matrices(df)
     
-    # TODO: Create TwiceDifferentiable objective
-    # Use autodiff = :forward for ForwardDiff
+
+    td = TwiceDifferentiable(θ -> factor_model(θ, X, Xfac, asvabs, y, 9), 
+                               start_vals; autodiff = :forward)
+    result = optimize(td, start_vals, 
+                      Newton(linesearch=BackTracking()),
+                      Optim.Options(g_tol = 1e-5, iterations = 100_000, show_trace = true))
+    H = Optim.hessian!(td, result.minimizer)
+    se = sqrt.(diag(inv(H)))
     
-    # TODO: Optimize using Newton method
-    # Optim.Options: set g_tol, iterations, show_trace as appropriate
-    
-    # TODO: Compute Hessian and standard errors
-    
-    # TODO: Return estimates, standard errors, and log-likelihood
-    
+    return result.minimizer, se, result.minimum
+
 end
 
 """
@@ -365,13 +366,7 @@ Format estimation results into a readable DataFrame.
 # Returns
 - DataFrame with columns: equation, variable, coefficient, std_error
 """
-function format_results(θ::Vector, se::Vector, loglike::Real, asvabs::Matrix)
-    # TODO: Create vectors for equation names and variable names
-    # Structure should match the parameter ordering in θ
-    
-    # TODO: Combine into DataFrame with appropriate column names
-    
-end
+
 
 #==================================================================================
 # Main execution function
@@ -438,7 +433,8 @@ function main()
     println()
     OLSPCA = lm(@formula(logwage ~ black + hispanic + female + schoolt + gradHS + grad4yr+ asvabPCA), df)
     println(OLSPCA)
-    # TODO: Call estimate_pca_regression() and display results
+
+    # println(estimate_pca_regression())
 
     
     # Question 5
@@ -449,24 +445,36 @@ function main()
     println()
     OLSFactor = lm(@formula(logwage ~ black + hispanic + female + schoolt + gradHS + grad4yr+ asvabFactor), df)
     println(OLSFactor)
-    # TODO: Call estimate_factor_regression() and display results
+
+    # println(estimate_factor_regression())
     
     # Question 6
     println("\n" * "="^80)
     println("Question 6: Full Factor Model (MLE)")
     println("="^80)
-    
-    # TODO: Prepare starting values
-    # Hint: Can use OLS estimates as starting values:
-    # - For γ: regress each ASVAB on Xfac
-    # - For β: regress wage on X
-    # - For α: start with random small values or zeros
-    # - For σ: start with sample standard deviations or 0.5
+     X, y, Xfac, asvabs = prepare_factor_matrices(df)
+     svals = vcat(
+        Xfac\asvabs[:,1],
+        Xfac\asvabs[:,2],
+        Xfac\asvabs[:,3],
+        Xfac\asvabs[:,4],
+        Xfac\asvabs[:,5],
+        Xfac\asvabs[:,6],
+        X\y,
+        randn(7),    # α_j starting values
+        0.5*ones(7)  # σ_j starting values
+     )
     
     println("\nEstimating full factor model...")
-    # TODO: Call run_estimation() with starting values
-    
-    # TODO: Format and display results
+
+    θ̂, se, loglike = run_estimation(df, svals)
+    println("Estimation complete.")
+    println("Log-likelihood at optimum: ", -loglike)
+    println("Estimated parameters:")
+    println(θ̂)
+    println("Standard errors:")
+    println(se)
+
     
     println("\n" * "="^80)
     println("Analysis complete!")
@@ -477,23 +485,3 @@ end
 # Execute main function
 ==================================================================================#
 
-# Uncomment when ready to run:
-# main()
-
-#==================================================================================
-# Question 7: Unit Tests
-==================================================================================#
-
-# TODO: Create unit tests for your functions
-# Suggested tests:
-# - Test data loading returns proper DataFrame
-# - Test correlation matrix has correct dimensions
-# - Test likelihood function returns finite value
-# - Test parameter unpacking and dimensions
-# - Test optimization converges
-
-# Example structure:
-# using Test
-# @testset "Factor Model Tests" begin
-#     @test <condition>
-# end
